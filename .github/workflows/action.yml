@@ -62,17 +62,26 @@ jobs:
               }
             }' -f project=$PROJECT_ID -f issue=$ISSUE_ID || exit 1
 
-          # Add issue to column "todo" in project
-          gh api graphql -f query='
-            mutation($project: ID!, $issue: ID!) {
-              moveProjectV2Item(input: {projectId: $project, itemId: $issue, columnId: "MDEzOlByb2plY3RDb2x1bW4xNjQwNjQ4"}) {
-                item {
-                  id
+          # Get the columns of the project
+          columns=$(gh api graphql -f query='
+            query($project: ID!) {
+              node(id: $project) {
+                ... on ProjectV2 {
+                  columns(first: 100) {
+                    nodes {
+                      id
+                      name
+                    }
+                  }
                 }
               }
-            }' -f project=$PROJECT_ID -f issue=$ISSUE_ID || exit 1
+            }' -f project=$PROJECT_ID)
 
+            # Extract the column ID for the desired column name
+            COLUMN_NAME="Todo"
+            COLUMN_ID=$(echo $columns | jq -r --arg COLUMN_NAME "$COLUMN_NAME" '.data.node.columns.nodes[] | select(.name == $COLUMN_NAME) | .id')
 
+            
 
       - name: Confirm addition
         run: echo "Issue added to project successfully."
