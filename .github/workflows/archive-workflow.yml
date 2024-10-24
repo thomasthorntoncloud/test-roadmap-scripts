@@ -6,20 +6,12 @@ on:
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
-  archive-issues:
+  archive-inactive-issues:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      # - name: Set up GitHub CLI
-      #   run: |
-      #     gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
-
       - name: Archive inactive issues
         env:
           GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
-          ISSUE_ID: ${{ github.event.issue.node_id }}
         run: |
           # Retrieve project ID
           PROJECT_ID=$(gh api graphql -f query='
@@ -33,7 +25,35 @@ jobs:
 
           echo "PROJECT_ID: $PROJECT_ID"
 
-          # Find items to archive (closed issues updated more than 10 minutes ago)
+          # Get the Status field ID and Archived option ID
+          FIELD_DATA=$(gh api graphql -f query='
+            query($project: ID!) {
+              node(id: $project) {
+                ... on ProjectV2 {
+                  fields(first: 20) {
+                    nodes {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                        options {
+                          id
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f project=$PROJECT_ID --jq '.data.node.fields.nodes[] | select(.name == "Status")')
+
+          STATUS_FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
+          ARCHIVED_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Archived") | .id')
+
+          echo "STATUS_FIELD_ID: $STATUS_FIELD_ID"
+          echo "ARCHIVED_OPTION_ID: $ARCHIVED_OPTION_ID"
+
+          # Find closed issues not updated in the last 10 minutes
+          CUTOFF_DATE=$(date -d '10 minutes ago' -u +"%Y-%m-%dT%H:%M:%SZ")
           ITEMS_TO_ARCHIVE=$(gh api graphql -f query='
             query($project: ID!, $cutoff: DateTime!) {
               node(id: $project) {
@@ -43,6 +63,7 @@ jobs:
                       id
                       content {
                         ... on Issue {
+                          id
                           state
                           updatedAt
                         }
@@ -51,29 +72,36 @@ jobs:
                   }
                 }
               }
-            }' -f project=$PROJECT_ID -f cutoff=$(date -d '10 minutes ago' -u +"%Y-%m-%dT%H:%M:%SZ") \
-            --jq '.data.node.items.nodes[] | select(.content.state == "CLOSED" and (.content.updatedAt < env.cutoff)) | .id')
+            }' -f project=$PROJECT_ID -f cutoff=$CUTOFF_DATE --jq '.data.node.items.nodes[] | select(.content.state == "CLOSED" and (.content.updatedAt < env.CUTOFF_DATE)) | .id')
 
           echo "Items to archive: $ITEMS_TO_ARCHIVE"
 
           # Archive each item
           for ITEM_ID in $ITEMS_TO_ARCHIVE; do
             echo "Archiving item: $ITEM_ID"
-            gh api graphql -f query='
-              mutation($project: ID!, $item: ID!) {
+            RESULT=$(gh api graphql -f query='
+              mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
                 updateProjectV2ItemFieldValue(input: {
                   projectId: $project
                   itemId: $item
-                  fieldId: "ARCHIVE_FIELD_ID"  # Replace with actual field ID for archiving
+                  fieldId: $field
                   value: { 
-                    singleSelectOptionId: "ARCHIVE_OPTION_ID"  # Replace with actual option ID for archiving
+                    singleSelectOptionId: $value
                   }
                 }) {
                   projectV2Item {
                     id
                   }
                 }
-              }' -f project=$PROJECT_ID -f item=$ITEM_ID
+              }' -f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$ARCHIVED_OPTION_ID)
 
-            echo "Archived item: $ITEM_ID"
+            if echo "$RESULT" | jq -e '.data.updateProjectV2ItemFieldValue.projectV2Item.id' > /dev/null; then
+              echo "Item $ITEM_ID successfully archived."
+            else
+              echo "Error archiving item $ITEM_ID: $RESULT"
+            fi
           done
+
+      - name: Confirm archiving process
+        if: success()
+        run: echo "Archiving process completed successfully."
