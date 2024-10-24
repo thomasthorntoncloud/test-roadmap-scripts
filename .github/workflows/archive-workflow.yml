@@ -1,108 +1,108 @@
-name: Archive Inactive Issues
+# name: Archive Inactive Issues
 
-on:
-  schedule:
-    - cron: '*/10 * * * *'  # Runs every 10 minutes
-  workflow_dispatch:  # Allows manual triggering
+# on:
+#   schedule:
+#     - cron: '*/10 * * * *'  # Runs every 10 minutes
+#   workflow_dispatch:  # Allows manual triggering
 
-jobs:
-  archive-inactive-issues:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Archive inactive issues
-        env:
-          GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
-        run: |
-          # Retrieve project ID
-          PROJECT_ID=$(gh api graphql -f query='
-            query($organization: String!, $number: Int!) {
-              organization(login: $organization) {
-                projectV2(number: $number) {
-                  id
-                }
-              }
-            }' -f organization="thomasthorntoncloud" -F number=1 --jq '.data.organization.projectV2.id')
+# jobs:
+#   archive-inactive-issues:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Archive inactive issues
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
+#         run: |
+#           # Retrieve project ID
+#           PROJECT_ID=$(gh api graphql -f query='
+#             query($organization: String!, $number: Int!) {
+#               organization(login: $organization) {
+#                 projectV2(number: $number) {
+#                   id
+#                 }
+#               }
+#             }' -f organization="thomasthorntoncloud" -F number=1 --jq '.data.organization.projectV2.id')
 
-          echo "PROJECT_ID: $PROJECT_ID"
+#           echo "PROJECT_ID: $PROJECT_ID"
 
-          # Get the Status field ID and Archived option ID
-          FIELD_DATA=$(gh api graphql -f query='
-            query($project: ID!) {
-              node(id: $project) {
-                ... on ProjectV2 {
-                  fields(first: 20) {
-                    nodes {
-                      ... on ProjectV2SingleSelectField {
-                        id
-                        name
-                        options {
-                          id
-                          name
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }' -f project=$PROJECT_ID --jq '.data.node.fields.nodes[] | select(.name == "Status")')
+#           # Get the Status field ID and Archived option ID
+#           FIELD_DATA=$(gh api graphql -f query='
+#             query($project: ID!) {
+#               node(id: $project) {
+#                 ... on ProjectV2 {
+#                   fields(first: 20) {
+#                     nodes {
+#                       ... on ProjectV2SingleSelectField {
+#                         id
+#                         name
+#                         options {
+#                           id
+#                           name
+#                         }
+#                       }
+#                     }
+#                   }
+#                 }
+#               }
+#             }' -f project=$PROJECT_ID --jq '.data.node.fields.nodes[] | select(.name == "Status")')
 
-          STATUS_FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
-          ARCHIVED_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Archived") | .id // empty')
+#           STATUS_FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
+#           ARCHIVED_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Archived") | .id // empty')
 
-          echo "STATUS_FIELD_ID: $STATUS_FIELD_ID"
-          echo "ARCHIVED_OPTION_ID: $ARCHIVED_OPTION_ID"
+#           echo "STATUS_FIELD_ID: $STATUS_FIELD_ID"
+#           echo "ARCHIVED_OPTION_ID: $ARCHIVED_OPTION_ID"
 
-          # Find closed issues not updated in the last 10 minutes
-          CUTOFF_DATE=$(date -d '10 minutes ago' -u +"%Y-%m-%dT%H:%M:%SZ")
+#           # Find closed issues not updated in the last 10 minutes
+#           CUTOFF_DATE=$(date -d '10 minutes ago' -u +"%Y-%m-%dT%H:%M:%SZ")
           
-          ITEMS_TO_ARCHIVE=$(gh api graphql -f query='
-            query($project: ID!) {
-              node(id: $project) {
-                ... on ProjectV2 {
-                  items(first: 100) {
-                    nodes {
-                      id
-                      content {
-                        ... on Issue {
-                          id
-                          state
-                          updatedAt
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }' -f project=$PROJECT_ID --jq '.data.node.items.nodes[] | select(.content.state == "CLOSED" and (.content.updatedAt < "'"$CUTOFF_DATE"'")) | .id')
+#           ITEMS_TO_ARCHIVE=$(gh api graphql -f query='
+#             query($project: ID!) {
+#               node(id: $project) {
+#                 ... on ProjectV2 {
+#                   items(first: 100) {
+#                     nodes {
+#                       id
+#                       content {
+#                         ... on Issue {
+#                           id
+#                           state
+#                           updatedAt
+#                         }
+#                       }
+#                     }
+#                   }
+#                 }
+#               }
+#             }' -f project=$PROJECT_ID --jq '.data.node.items.nodes[] | select(.content.state == "CLOSED" and (.content.updatedAt < "'"$CUTOFF_DATE"'")) | .id')
 
-          echo "Items to archive: $ITEMS_TO_ARCHIVE"
+#           echo "Items to archive: $ITEMS_TO_ARCHIVE"
 
-          # Archive each item
-          for ITEM_ID in $ITEMS_TO_ARCHIVE; do
-            echo "Archiving item: $ITEM_ID"
-            RESULT=$(gh api graphql -f query='
-              mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
-                updateProjectV2ItemFieldValue(input: {
-                  projectId: $project
-                  itemId: $item
-                  fieldId: $field
-                  value: { 
-                    singleSelectOptionId: $value
-                  }
-                }) {
-                  projectV2Item {
-                    id
-                  }
-                }
-              }' -f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$ARCHIVED_OPTION_ID)
+#           # Archive each item
+#           for ITEM_ID in $ITEMS_TO_ARCHIVE; do
+#             echo "Archiving item: $ITEM_ID"
+#             RESULT=$(gh api graphql -f query='
+#               mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
+#                 updateProjectV2ItemFieldValue(input: {
+#                   projectId: $project
+#                   itemId: $item
+#                   fieldId: $field
+#                   value: { 
+#                     singleSelectOptionId: $value
+#                   }
+#                 }) {
+#                   projectV2Item {
+#                     id
+#                   }
+#                 }
+#               }' -f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$ARCHIVED_OPTION_ID)
 
-            if echo "$RESULT" | jq -e '.data.updateProjectV2ItemFieldValue.projectV2Item.id' > /dev/null; then
-              echo "Item $ITEM_ID successfully archived."
-            else
-              echo "Error archiving item $ITEM_ID: $RESULT"
-            fi
-          done
+#             if echo "$RESULT" | jq -e '.data.updateProjectV2ItemFieldValue.projectV2Item.id' > /dev/null; then
+#               echo "Item $ITEM_ID successfully archived."
+#             else
+#               echo "Error archiving item $ITEM_ID: $RESULT"
+#             fi
+#           done
 
-      - name: Confirm archiving process
-        if: success()
-        run: echo "Archiving process completed successfully."
+#       - name: Confirm archiving process
+#         if: success()
+#         run: echo "Archiving process completed successfully."
