@@ -14,14 +14,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_ID: ${{ github.event.issue.node_id }}
         run: |
-          # Get the project ID
-          PROJECT_ID=$(gh api graphql -f query='
-            query($user: String!, $projectNumber: Int!) {
-              user(login: $user) {
-                projectV2(number: $projectNumber) {
+          my_org="thomasthorntoncloud"
+          my_num=2
+          gh api graphql -f query='
+            query($organization: String! $number: Int!){
+              organization(login: $organization){
+                projectV2(number: $number) {
                   id
                 }
               }
-            }' -F user="thomast1906" -F projectNumber=2 --jq '.data.user.projectV2.id')
-
-          echo "Project ID: $PROJECT_ID"
+            }' -f organization=$my_org -F number=$my_num
