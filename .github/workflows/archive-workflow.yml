@@ -1,0 +1,80 @@
+name: Archive Inactive Issues
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Runs every 10 minutes
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  archive-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up GitHub CLI
+        run: |
+          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Archive inactive issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORG_NAME: "your-organization-name"
+          PROJECT_NUMBER: 1  # Replace with your project number
+        run: |
+          # Get the project ID
+          PROJECT_ID=$(gh api graphql -f query='
+            query($organization: String!, $number: Int!) {
+              organization(login: $organization) {
+                projectV2(number: $number) {
+                  id
+                }
+              }
+            }' -f organization="$ORG_NAME" -F number=$PROJECT_NUMBER --jq '.data.organization.projectV2.id')
+
+          echo "Project ID: $PROJECT_ID"
+
+          # Find items to archive (closed issues updated more than 10 minutes ago)
+          ITEMS_TO_ARCHIVE=$(gh api graphql -f query='
+            query($project: ID!, $cutoff: DateTime!) {
+              node(id: $project) {
+                ... on ProjectV2 {
+                  items(first: 100) {
+                    nodes {
+                      id
+                      content {
+                        ... on Issue {
+                          state
+                          updatedAt
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f project=$PROJECT_ID -f cutoff=$(date -d '10 minutes ago' -u +"%Y-%m-%dT%H:%M:%SZ") \
+            --jq '.data.node.items.nodes[] | select(.content.state == "CLOSED" and (.content.updatedAt < env.cutoff)) | .id')
+
+          echo "Items to archive: $ITEMS_TO_ARCHIVE"
+
+          # Archive each item
+          for ITEM_ID in $ITEMS_TO_ARCHIVE; do
+            echo "Archiving item: $ITEM_ID"
+            gh api graphql -f query='
+              mutation($project: ID!, $item: ID!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $project
+                  itemId: $item
+                  fieldId: "ARCHIVE_FIELD_ID"  # Replace with actual field ID for archiving
+                  value: { 
+                    singleSelectOptionId: "ARCHIVE_OPTION_ID"  # Replace with actual option ID for archiving
+                  }
+                }) {
+                  projectV2Item {
+                    id
+                  }
+                }
+              }' -f project=$PROJECT_ID -f item=$ITEM_ID
+
+            echo "Archived item: $ITEM_ID"
+          done
