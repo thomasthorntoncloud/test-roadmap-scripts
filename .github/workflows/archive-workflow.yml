@@ -12,17 +12,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Set up GitHub CLI
-        run: |
-          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+      # - name: Set up GitHub CLI
+      #   run: |
+      #     gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Archive inactive issues
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ORG_NAME: "your-organization-name"
-          PROJECT_NUMBER: 1  # Replace with your project number
+          GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
+          ISSUE_ID: ${{ github.event.issue.node_id }}
         run: |
-          # Get the project ID
+          # Retrieve project ID
           PROJECT_ID=$(gh api graphql -f query='
             query($organization: String!, $number: Int!) {
               organization(login: $organization) {
@@ -30,9 +29,9 @@ jobs:
                   id
                 }
               }
-            }' -f organization="$ORG_NAME" -F number=$PROJECT_NUMBER --jq '.data.organization.projectV2.id')
+            }' -f organization="thomasthorntoncloud" -F number=1 --jq '.data.organization.projectV2.id')
 
-          echo "Project ID: $PROJECT_ID"
+          echo "PROJECT_ID: $PROJECT_ID"
 
           # Find items to archive (closed issues updated more than 10 minutes ago)
           ITEMS_TO_ARCHIVE=$(gh api graphql -f query='
