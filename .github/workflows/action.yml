@@ -66,8 +66,8 @@ jobs:
           columns=$(gh api graphql -f query='
             query($project: ID!) {
               node(id: $project) {
-                ... on ProjectV2 {
-                  columns(first: 100) {
+                ... on Project {
+                  columns(first: 10) {
                     nodes {
                       id
                       name
@@ -75,7 +75,7 @@ jobs:
                   }
                 }
               }
-            }' -f project=$PROJECT_ID)
+            }' -f project=$PROJECT_ID --jq '.data.node.columns')
 
             # Extract the column ID for the desired column name
             COLUMN_NAME="Todo"
