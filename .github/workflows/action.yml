@@ -8,33 +8,23 @@ on:
 env:
   GH_TOKEN: ${{ secrets.SECRET_PAT }}
 
+
 jobs:
-  example-job:
+  add-to-project:
     runs-on: ubuntu-latest
     steps:
-      - name: Use GitHub CLI
+      - name: Add issue to project Todo column
         env:
-          GH_TOKEN: ${{ secrets.SECRET_PAT }}
+          GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
+          ISSUE_ID: ${{ github.event.issue.node_id }}
         run: |
-          gh repo view
-          gh issue list
-
-# jobs:
-#   add-to-project:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Add issue to project Todo column
-#         env:
-#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#           ISSUE_ID: ${{ github.event.issue.node_id }}
-#         run: |
-#           my_org="thomasthorntoncloud"
-#           my_num=2
-#           gh api graphql -f query='
-#             query($organization: String! $number: Int!){
-#               organization(login: $organization){
-#                 projectV2(number: $number) {
-#                   id
-#                 }
-#               }
-#             }' -f organization=$my_org -F number=$my_num
+          my_org="thomasthorntoncloud"
+          my_num=2
+          gh api graphql -f query='
+            query($organization: String! $number: Int!){
+              organization(login: $organization){
+                projectV2(number: $number) {
+                  id
+                }
+              }
+            }' -f organization=$my_org -F number=$my_num
