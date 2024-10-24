@@ -1,0 +1,27 @@
+name: Add Issue to Project Todo Column
+
+on:
+  issues:
+    types:
+      - opened
+
+jobs:
+  add-to-project:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add issue to project Todo column
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_ID: ${{ github.event.issue.node_id }}
+        run: |
+          # Get the project ID
+          PROJECT_ID=$(gh api graphql -f query='
+            query($user: String!, $projectNumber: Int!) {
+              user(login: $user) {
+                projectV2(number: $projectNumber) {
+                  id
+                }
+              }
+            }' -F user="thomast1906" -F projectNumber=2 --jq '.data.user.projectV2.id')
+
+          echo "Project ID: $PROJECT_ID"
