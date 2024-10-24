@@ -27,22 +27,40 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
           ISSUE_ID: ${{ github.event.issue.node_id }}
         run: |
-          gh api graphql -f query='
-            query{
-              organization(login: "thomasthorntoncloud"){
-                projectV2(number: 1) {
+         # Retrieve project ID
+          PROJECT_ID=$(gh api graphql -f query='
+            query($organization: String!, $number: Int!) {
+              organization(login: $organization) {
+                projectV2(number: $number) {
                   id
                 }
               }
-            }'
+            }' -f organization="thomasthorntoncloud" -F number=1 --jq '.data.organization.projectV2.id')
 
-          # Add the issue to the project
+          # Check if PROJECT_ID is set
+          if [ -z "$PROJECT_ID" ]; then
+            echo "Project ID could not be retrieved."
+            exit 1
+          fi
+
+          # Retrieve issue ID from the event payload
+          ISSUE_ID="${{ github.event.issue.node_id }}"
+
+          # Check if ISSUE_ID is set
+          if [ -z "$ISSUE_ID" ]; then
+            echo "Issue ID could not be retrieved."
+            exit 1
+          fi
+
+          # Add issue to project
           gh api graphql -f query='
-            mutation($project:ID!, $issue:ID!) {
+            mutation($project: ID!, $issue: ID!) {
               addProjectV2ItemById(input: {projectId: $project, contentId: $issue}) {
                 item {
                   id
                 }
               }
-            }
-          ' -f project=$PROJECT_ID -f issue=$ISSUE_ID
+            }' -f project=$PROJECT_ID -f issue=$ISSUE_ID || exit 1
+
+      - name: Confirm addition
+        run: echo "Issue added to project successfully."
