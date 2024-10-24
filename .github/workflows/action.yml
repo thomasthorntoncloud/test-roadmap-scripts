@@ -81,7 +81,15 @@ jobs:
             COLUMN_NAME="Todo"
             COLUMN_ID=$(echo $columns | jq -r --arg COLUMN_NAME "$COLUMN_NAME" '.data.node.columns.nodes[] | select(.name == $COLUMN_NAME) | .id')
 
-            
+            # Move issue to the Todo column
+            gh api graphql -f query='
+              mutation($column: ID!, $issue: ID!) {
+                moveProjectV2Item(input: {itemId: $issue, columnId: $column}) {
+                  item {
+                    id
+                  }
+                }
+              }' -f column=$COLUMN_ID -f issue=$ISSUE_ID || exit 1
 
       - name: Confirm addition
         run: echo "Issue added to project successfully."
