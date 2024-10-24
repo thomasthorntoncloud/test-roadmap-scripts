@@ -74,6 +74,11 @@ jobs:
 
           echo "ITEM_ID: $ITEM_ID"
 
+          if [ -z "$ITEM_ID" ]; then
+            echo "Error: Could not find the issue in the project. Skipping status update."
+            exit 0
+          fi
+
           # Set the Status to Done
           RESULT=$(gh api graphql -f query='
             mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
@@ -91,7 +96,13 @@ jobs:
               }
             }' -f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$DONE_OPTION_ID)
 
-          echo "RESULT: $RESULT"
+          if echo "$RESULT" | jq -e '.data.updateProjectV2ItemFieldValue.projectV2Item.id' > /dev/null; then
+            echo "Issue successfully moved to Done status."
+          else
+            echo "Error updating issue status: $RESULT"
+            exit 1
+          fi
 
       - name: Confirm status update
+        if: success()
         run: echo "Issue moved to Done status successfully."
