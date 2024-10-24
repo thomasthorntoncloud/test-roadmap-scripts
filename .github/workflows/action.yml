@@ -27,7 +27,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
           ISSUE_ID: ${{ github.event.issue.node_id }}
         run: |
-         # Retrieve project ID
+          # Retrieve project ID
           PROJECT_ID=$(gh api graphql -f query='
             query($organization: String!, $number: Int!) {
               organization(login: $organization) {
@@ -37,71 +37,68 @@ jobs:
               }
             }' -f organization="thomasthorntoncloud" -F number=1 --jq '.data.organization.projectV2.id')
 
-          # Check if PROJECT_ID is set
-          if [ -z "$PROJECT_ID" ]; then
-            echo "Project ID could not be retrieved."
-            exit 1
-          fi
-
-          # Retrieve issue ID from the event payload
-          ISSUE_ID="${{ github.event.issue.node_id }}"
-
-          # Check if ISSUE_ID is set
-          if [ -z "$ISSUE_ID" ]; then
-            echo "Issue ID could not be retrieved."
-            exit 1
-          fi
+          echo "PROJECT_ID: $PROJECT_ID"
 
           # Add issue to project
-          gh api graphql -f query='
+          ITEM_ID=$(gh api graphql -f query='
             mutation($project: ID!, $issue: ID!) {
               addProjectV2ItemById(input: {projectId: $project, contentId: $issue}) {
                 item {
                   id
                 }
               }
-            }' -f project=$PROJECT_ID -f issue=$ISSUE_ID || exit 1
+            }' -f project=$PROJECT_ID -f issue=$ISSUE_ID --jq '.data.addProjectV2ItemById.item.id')
 
-          # Get the columns of the project
-          columns=$(gh api graphql -f query='
+          echo "ITEM_ID: $ITEM_ID"
+
+          # Get the Status field ID and Todo option ID
+          FIELD_DATA=$(gh api graphql -f query='
             query($project: ID!) {
               node(id: $project) {
-                ... on Project {
-                  columns(first: 10) {
+                ... on ProjectV2 {
+                  fields(first: 20) {
                     nodes {
-                      id
-                      name
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                        options {
+                          id
+                          name
+                        }
+                      }
                     }
                   }
                 }
               }
-            }' -f project=$PROJECT_ID --jq '.data.node.columns')
+            }' -f project=$PROJECT_ID --jq '.data.node.fields.nodes[] | select(.name == "Status")')
 
-            # Extract the column ID for the desired column name
-            COLUMN_NAME="Todo"
-            COLUMN_ID=$(echo $columns | jq -r --arg COLUMN_NAME "$COLUMN_NAME" '.data.node.columns.nodes[] | select(.name == $COLUMN_NAME) | .id')
+          STATUS_FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
+          TODO_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Todo") | .id')
 
-          # Get the card ID for the issue
-          CARD_ID=$(gh api graphql -f query='
-            query($issue: ID!) {
-              node(id: $issue) {
-                ... on Issue {
-                  projectCards(first: 1) {
-                    nodes {
-                      id
-                    }
-                  }
+          echo "STATUS_FIELD_ID: $STATUS_FIELD_ID"
+          echo "TODO_OPTION_ID: $TODO_OPTION_ID"
+
+          # Set the Status to Todo
+          RESULT=$(gh api graphql -f query='
+            mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $project
+                itemId: $item
+                fieldId: $field
+                value: { 
+                  singleSelectOptionId: $value
+                }
+              }) {
+                projectV2Item {
+                  id
                 }
               }
-            }' -f issue=$ISSUE_ID --jq '.data.node.projectCards.nodes[0].id')
+            }' -f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$TODO_OPTION_ID)
 
-          # Move issue to the Todo column
-          gh api graphql -f query='
-            mutation($cardId: ID!, $columnId: ID!) {
-              moveProjectCard(input: {cardId: $cardId, columnId: $columnId}) {
-                clientMutationId
-              }
-            }' -f cardId=$CARD_ID -f columnId=$COLUMN_ID || exit 1
+          echo "RESULT: $RESULT"
+
+      - name: Confirm addition
+        run: echo "Issue added to project and set to Todo status successfully."
 
       - name: Confirm addition
         run: echo "Issue added to project successfully."
