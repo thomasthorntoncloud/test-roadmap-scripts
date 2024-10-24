@@ -56,7 +56,7 @@ jobs:
           CUTOFF_DATE=$(date -d '10 minutes ago' -u +"%Y-%m-%dT%H:%M:%SZ")
           
           ITEMS_TO_ARCHIVE=$(gh api graphql -f query='
-            query($project: ID!, $cutoff: DateTime!) {
+            query($project: ID!) {
               node(id: $project) {
                 ... on ProjectV2 {
                   items(first: 100) {
@@ -73,7 +73,7 @@ jobs:
                   }
                 }
               }
-            }' -f project=$PROJECT_ID -f cutoff="$CUTOFF_DATE" --jq '.data.node.items.nodes[] | select(.content.state == "CLOSED" and (.content.updatedAt < $cutoff)) | .id')
+            }' -f project=$PROJECT_ID --jq '.data.node.items.nodes[] | select(.content.state == "CLOSED" and (.content.updatedAt < "'"$CUTOFF_DATE"'")) | .id')
 
           echo "Items to archive: $ITEMS_TO_ARCHIVE"
 
