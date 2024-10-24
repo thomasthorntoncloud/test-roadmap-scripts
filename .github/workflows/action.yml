@@ -81,15 +81,27 @@ jobs:
             COLUMN_NAME="Todo"
             COLUMN_ID=$(echo $columns | jq -r --arg COLUMN_NAME "$COLUMN_NAME" '.data.node.columns.nodes[] | select(.name == $COLUMN_NAME) | .id')
 
-            # Move issue to the Todo column
-            gh api graphql -f query='
-              mutation($column: ID!, $issue: ID!) {
-                moveProjectV2Item(input: {itemId: $issue, columnId: $column}) {
-                  item {
-                    id
+          # Get the card ID for the issue
+          CARD_ID=$(gh api graphql -f query='
+            query($issue: ID!) {
+              node(id: $issue) {
+                ... on Issue {
+                  projectCards(first: 1) {
+                    nodes {
+                      id
+                    }
                   }
                 }
-              }' -f column=$COLUMN_ID -f issue=$ISSUE_ID || exit 1
+              }
+            }' -f issue=$ISSUE_ID --jq '.data.node.projectCards.nodes[0].id')
+
+          # Move issue to the Todo column
+          gh api graphql -f query='
+            mutation($cardId: ID!, $columnId: ID!) {
+              moveProjectCard(input: {cardId: $cardId, columnId: $columnId}) {
+                clientMutationId
+              }
+            }' -f cardId=$CARD_ID -f columnId=$COLUMN_ID || exit 1
 
       - name: Confirm addition
         run: echo "Issue added to project successfully."
