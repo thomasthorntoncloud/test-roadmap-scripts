@@ -54,6 +54,7 @@ jobs:
 
           # Find closed issues not updated in the last 10 minutes
           CUTOFF_DATE=$(date -d '10 minutes ago' -u +"%Y-%m-%dT%H:%M:%SZ")
+          
           ITEMS_TO_ARCHIVE=$(gh api graphql -f query='
             query($project: ID!, $cutoff: DateTime!) {
               node(id: $project) {
@@ -72,7 +73,7 @@ jobs:
                   }
                 }
               }
-            }' -f project=$PROJECT_ID -f cutoff=$CUTOFF_DATE --jq '.data.node.items.nodes[] | select(.content.state == "CLOSED" and (.content.updatedAt < env.CUTOFF_DATE)) | .id')
+            }' -f project=$PROJECT_ID -f cutoff="$CUTOFF_DATE" --jq '.data.node.items.nodes[] | select(.content.state == "CLOSED" and (.content.updatedAt < $cutoff)) | .id')
 
           echo "Items to archive: $ITEMS_TO_ARCHIVE"
 
