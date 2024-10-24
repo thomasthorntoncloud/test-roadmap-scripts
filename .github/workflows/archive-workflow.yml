@@ -47,7 +47,7 @@ jobs:
             }' -f project=$PROJECT_ID --jq '.data.node.fields.nodes[] | select(.name == "Status")')
 
           STATUS_FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
-          ARCHIVED_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Archived") | .id')
+          ARCHIVED_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Archived") | .id // empty')
 
           echo "STATUS_FIELD_ID: $STATUS_FIELD_ID"
           echo "ARCHIVED_OPTION_ID: $ARCHIVED_OPTION_ID"
