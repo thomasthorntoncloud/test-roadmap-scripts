@@ -35,3 +35,14 @@ jobs:
                 }
               }
             }'
+
+          # Add the issue to the project
+          gh api graphql -f query='
+            mutation($project:ID!, $issue:ID!) {
+              addProjectV2ItemById(input: {projectId: $project, contentId: $issue}) {
+                item {
+                  id
+                }
+              }
+            }
+          ' -f project=$PROJECT_ID -f issue=$ISSUE_ID
