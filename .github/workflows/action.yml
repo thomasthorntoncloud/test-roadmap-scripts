@@ -27,4 +27,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_ID: ${{ github.event.issue.node_id }}
         run: |
-          gh project list
+          gh api graphql -f query='
+            query{
+              organization(login: "thomasthorntoncloud"){
+                projectV2(number: 1) {
+                  id
+                }
+              }
+            }'
