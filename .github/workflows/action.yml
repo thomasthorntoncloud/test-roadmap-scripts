@@ -62,5 +62,43 @@ jobs:
               }
             }' -f project=$PROJECT_ID -f issue=$ISSUE_ID || exit 1
 
+          # Get the ID of the "Todo" status field option
+          TODO_FIELD_ID=$(gh api graphql -f query='
+            query($project: ID!) {
+              node(id: $project) {
+                ... on ProjectV2 {
+                  fields(first: 20) {
+                    nodes {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                        options {
+                          id
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f project=$PROJECT_ID --jq '.data.node.fields.nodes[] | select(.name == "Status") | .options[] | select(.name == "Todo") | .id')
+
+          # Move issue to "Todo" column
+          gh api graphql -f query='
+            mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $project
+                itemId: $item
+                fieldId: $field
+                value: { 
+                  singleSelectOptionId: $value
+                }
+              }) {
+                projectV2Item {
+                  id
+                }
+              }
+            }' -f project=$PROJECT_ID -f item=$ITEM_ID -f field=$TODO_FIELD_ID -f value=$TODO_FIELD_ID
+
       - name: Confirm addition
         run: echo "Issue added to project successfully."
