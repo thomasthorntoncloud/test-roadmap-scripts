@@ -1,28 +1,15 @@
-name: Add Issue to Project Todo Column
+name: Move Issue to Done When Closed
 
 on:
   issues:
     types:
-      - opened
-
-# jobs:
-  # open-issue:
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: read
-  #     issues: write
-  #   steps:
-  #     - run: |
-  #         gh issue --repo ${{ github.repository }} \
-  #           create --title "Issue title" --body "Issue body"
-  #       env:
-  #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - closed
 
 jobs:
-  add-to-project:
+  move-to-done:
     runs-on: ubuntu-latest
     steps:
-      - name: Add issue to project Todo column
+      - name: Move issue to Done
         env:
           GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
           ISSUE_ID: ${{ github.event.issue.node_id }}
@@ -39,19 +26,7 @@ jobs:
 
           echo "PROJECT_ID: $PROJECT_ID"
 
-          # Add issue to project
-          ITEM_ID=$(gh api graphql -f query='
-            mutation($project: ID!, $issue: ID!) {
-              addProjectV2ItemById(input: {projectId: $project, contentId: $issue}) {
-                item {
-                  id
-                }
-              }
-            }' -f project=$PROJECT_ID -f issue=$ISSUE_ID --jq '.data.addProjectV2ItemById.item.id')
-
-          echo "ITEM_ID: $ITEM_ID"
-
-          # Get the Status field ID and Todo option ID
+          # Get the Status field ID and Done option ID
           FIELD_DATA=$(gh api graphql -f query='
             query($project: ID!) {
               node(id: $project) {
@@ -73,12 +48,33 @@ jobs:
             }' -f project=$PROJECT_ID --jq '.data.node.fields.nodes[] | select(.name == "Status")')
 
           STATUS_FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
-          TODO_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Todo") | .id')
+          DONE_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Done") | .id')
 
           echo "STATUS_FIELD_ID: $STATUS_FIELD_ID"
-          echo "TODO_OPTION_ID: $TODO_OPTION_ID"
+          echo "DONE_OPTION_ID: $DONE_OPTION_ID"
 
-          # Set the Status to Todo
+          # Find the item ID for the closed issue
+          ITEM_ID=$(gh api graphql -f query='
+            query($project: ID!, $issue: ID!) {
+              node(id: $project) {
+                ... on ProjectV2 {
+                  items(first: 100) {
+                    nodes {
+                      id
+                      content {
+                        ... on Issue {
+                          id
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f project=$PROJECT_ID -f issue=$ISSUE_ID --jq '.data.node.items.nodes[] | select(.content.id == env.ISSUE_ID) | .id')
+
+          echo "ITEM_ID: $ITEM_ID"
+
+          # Set the Status to Done
           RESULT=$(gh api graphql -f query='
             mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
               updateProjectV2ItemFieldValue(input: {
@@ -93,12 +89,9 @@ jobs:
                   id
                 }
               }
-            }' -f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$TODO_OPTION_ID)
+            }' -f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$DONE_OPTION_ID)
 
           echo "RESULT: $RESULT"
 
-      - name: Confirm addition
-        run: echo "Issue added to project and set to Todo status successfully."
-
-      - name: Confirm addition
-        run: echo "Issue added to project successfully."
+      - name: Confirm status update
+        run: echo "Issue moved to Done status successfully."
