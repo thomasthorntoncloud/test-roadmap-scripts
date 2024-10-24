@@ -5,7 +5,7 @@ on:
     types:
       - opened
 
-jobs:
+# jobs:
   # open-issue:
   #   runs-on: ubuntu-latest
   #   permissions:
