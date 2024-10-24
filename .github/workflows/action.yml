@@ -6,34 +6,34 @@ on:
       - opened
 
 jobs:
-  open-issue:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-    steps:
-      - run: |
-          gh issue --repo ${{ github.repository }} \
-            create --title "Issue title" --body "Issue body"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # open-issue:
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     issues: write
+  #   steps:
+  #     - run: |
+  #         gh issue --repo ${{ github.repository }} \
+  #           create --title "Issue title" --body "Issue body"
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-# jobs:
-#   add-to-project:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Add issue to project Todo column
-#         env:
-#           GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
-#           ISSUE_ID: ${{ github.event.issue.node_id }}
-#         run: |
-#           my_org="thomasthorntoncloud"
-#           my_num=2
-#           gh api graphql -f query='
-#             query($organization: String! $number: Int!){
-#               organization(login: $organization){
-#                 projectV2(number: $number) {
-#                   id
-#                 }
-#               }
-#             }' -f organization=$my_org -F number=$my_num
+jobs:
+  add-to-project:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add issue to project Todo column
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_ID: ${{ github.event.issue.node_id }}
+        run: |
+          my_org="thomasthorntoncloud"
+          my_num=2
+          gh api graphql -f query='
+            query($organization: String! $number: Int!){
+              organization(login: $organization){
+                projectV2(number: $number) {
+                  id
+                }
+              }
+            }' -f organization=$my_org -F number=$my_num
