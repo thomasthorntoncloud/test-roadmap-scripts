@@ -36,6 +36,21 @@ jobs:
           STATUS_FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
           IN_PROGRESS_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "In Progress") | .id')
 
+          # Get the ID of the "In Progress" column
+          COLUMN_ID=$(gql_query '
+            query($project: ID!) {
+              node(id: $project) {
+                ... on ProjectV2 {
+                  columns(first: 10) {
+                    nodes {
+                      id
+                      name
+                    }
+                  }
+                }
+              }
+            }' "-f project=$PROJECT_ID" '.data.node.columns.nodes[] | select(.name == "In Progress") | .id')
+
           # Function to find item ID with pagination
           find_item_id() {
             local cursor=""
@@ -65,15 +80,19 @@ jobs:
 
           [ -z "$ITEM_ID" ] && { echo "Error: Issue not found in project."; exit 0; }
 
-          # Update issue status to In Progress
+          # Update issue status to In Progress and move to top of column
           RESULT=$(gql_query '
-            mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
+            mutation($project: ID!, $item: ID!, $field: ID!, $value: String!, $columnId: ID!) {
               updateProjectV2ItemFieldValue(input: {
                 projectId: $project, itemId: $item, fieldId: $field, value: { singleSelectOptionId: $value }
               }) { projectV2Item { id } }
-            }' "-f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$IN_PROGRESS_OPTION_ID" '.data.updateProjectV2ItemFieldValue.projectV2Item.id')
 
-          [ -n "$RESULT" ] && echo "Issue moved to In Progress status." || { echo "Error updating status: $RESULT"; exit 1; }
+              moveProjectV2Item(input: { projectId: $project, itemId: $item, columnId: $columnId, position: TOP }) {
+                projectV2Item { id }
+              }
+            }' "-f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$IN_PROGRESS_OPTION_ID -f columnId=$COLUMN_ID" '.data.updateProjectV2ItemFieldValue.projectV2Item.id')
+
+          [ -n "$RESULT" ] && echo "Issue moved to In Progress status at the top." || { echo "Error updating status: $RESULT"; exit 1; }
 
       - name: Confirm status update
         if: success()
