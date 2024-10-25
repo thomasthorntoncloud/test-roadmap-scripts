@@ -56,25 +56,56 @@ jobs:
           echo "STATUS_FIELD_ID: $STATUS_FIELD_ID"
           echo "DONE_OPTION_ID: $DONE_OPTION_ID"
 
-          # Find the item ID for the closed issue
-          ITEM_ID=$(gh api graphql -f query='
-            query($project: ID!) {
-              node(id: $project) {
-                ... on ProjectV2 {
-                  items(first: 5000) {
-                    nodes {
-                      id
-                      content {
-                        ... on Issue {
+          # Function to fetch items with pagination
+          fetch_items() {
+            local project_id=$1
+            local cursor=""
+            local has_next_page=true
+            local items=""
+
+            while $has_next_page; do
+              local query_result=$(gh api graphql -f query='
+                query($project: ID!, $cursor: String) {
+                  node(id: $project) {
+                    ... on ProjectV2 {
+                      items(first: 100, after: $cursor) {
+                        pageInfo {
+                          hasNextPage
+                          endCursor
+                        }
+                        nodes {
                           id
+                          content {
+                            ... on Issue {
+                              id
+                            }
+                          }
                         }
                       }
                     }
                   }
                 }
-              }
-            }
-          ' -f project=$PROJECT_ID --jq '.data.node.items.nodes[] | select(.content.id == env.ISSUE_ID) | .id')
+              ' -f project="$project_id" -f cursor="$cursor")
+
+              local page_items=$(echo "$query_result" | jq -r '.data.node.items.nodes[]')
+              items+="$page_items"
+
+              has_next_page=$(echo "$query_result" | jq -r '.data.node.items.pageInfo.hasNextPage')
+              cursor=$(echo "$query_result" | jq -r '.data.node.items.pageInfo.endCursor')
+
+              if [ "$has_next_page" = "false" ]; then
+                break
+              fi
+            done
+
+            echo "$items"
+          }
+
+          # Fetch all items
+          ALL_ITEMS=$(fetch_items "$PROJECT_ID")
+
+          # Find the item ID for the closed issue
+          ITEM_ID=$(echo "$ALL_ITEMS" | jq -r --arg ISSUE_ID "$ISSUE_ID" '.[] | select(.content.id == $ISSUE_ID) | .id')
 
           echo "ITEM_ID: $ITEM_ID"
 
