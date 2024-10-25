@@ -53,7 +53,3 @@ jobs:
             }' "-f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$TODO_OPTION_ID" '.data.updateProjectV2ItemFieldValue.projectV2Item.id')
 
           [ -n "$RESULT" ] && echo "Issue added to project and set to Todo status." || { echo "Error updating status: $RESULT"; exit 1; }
-
-      - name: Confirm addition
-        if: success()
-        run: echo "Issue added to project and set to Todo status successfully."

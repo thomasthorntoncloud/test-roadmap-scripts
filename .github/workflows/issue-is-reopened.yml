@@ -74,7 +74,3 @@ jobs:
             }' "-f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$IN_PROGRESS_OPTION_ID" '.data.updateProjectV2ItemFieldValue.projectV2Item.id')
 
           [ -n "$RESULT" ] && echo "Issue moved to In Progress status." || { echo "Error updating status: $RESULT"; exit 1; }
-
-      - name: Confirm status update
-        if: success()
-        run: echo "Issue moved to In Progress status successfully."
