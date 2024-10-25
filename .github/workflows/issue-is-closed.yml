@@ -14,7 +14,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
           ISSUE_ID: ${{ github.event.issue.node_id }}
           ORGANIZATION: thomasthorntoncloud
-          PROJECT_ID: 1
+          PROJECT_NUMBER: 1
         run: |
           # Retrieve project ID
           PROJECT_ID=$(gh api graphql -f query='
@@ -24,7 +24,7 @@ jobs:
                   id
                 }
               }
-            }' -f organization=ORGANIZATION -F number=$ISSUE_ID --jq '.data.organization.projectV2.id')
+            }' -f organization=$ORGANIZATION -F number=$PROJECT_NUMBER --jq '.data.organization.projectV2.id')
 
 
           echo "PROJECT_ID: $PROJECT_ID"
