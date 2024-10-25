@@ -1,4 +1,4 @@
-name: Move Issue to In Progress When ReOpened
+name: Move Issue to In Progress When Reopened
 
 on:
   issues:
@@ -13,6 +13,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
           ISSUE_ID: ${{ github.event.issue.node_id }}
+          ORGANIZATION: thomasthorntoncloud
+          PROJECT_NUMBER: 1
         run: |
           # Retrieve project ID
           PROJECT_ID=$(gh api graphql -f query='
@@ -22,7 +24,8 @@ jobs:
                   id
                 }
               }
-            }' -f organization="thomasthorntoncloud" -F number=1 --jq '.data.organization.projectV2.id')
+            }' -f organization=$ORGANIZATION -F number=$PROJECT_NUMBER --jq '.data.organization.projectV2.id')
+
 
           echo "PROJECT_ID: $PROJECT_ID"
 
@@ -48,30 +51,76 @@ jobs:
             }' -f project=$PROJECT_ID --jq '.data.node.fields.nodes[] | select(.name == "Status")')
 
           STATUS_FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
-          DONE_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "In Progress") | .id')
+          IN_PROGRESS_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "In Progress") | .id')
 
           echo "STATUS_FIELD_ID: $STATUS_FIELD_ID"
-          echo "DONE_OPTION_ID: $DONE_OPTION_ID"
+          echo "IN_PROGRESS_OPTION_ID: $IN_PROGRESS_OPTION_ID"
 
-          # Find the item ID for the reopened issue
-          ITEM_ID=$(gh api graphql -f query='
+            # Find the item ID for the reopened issue, accommodating more than 100 items
+            ITEM_ID=$(gh api graphql -f query='
             query($project: ID!) {
               node(id: $project) {
-                ... on ProjectV2 {
-                  items(first: 100) {
-                    nodes {
-                      id
-                      content {
-                        ... on Issue {
-                          id
-                        }
-                      }
-                    }
+              ... on ProjectV2 {
+                items(first: 100) {
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
+                nodes {
+                  id
+                  content {
+                  ... on Issue {
+                    id
+                  }
                   }
                 }
+                }
               }
-            }
-          ' -f project=$PROJECT_ID --jq '.data.node.items.nodes[] | select(.content.id == env.ISSUE_ID) | .id')
+              }
+            }' -f project=$PROJECT_ID --jq '.data.node.items.nodes[] | select(.content.id == env.ISSUE_ID) | .id')
+
+            # If not found, paginate through the rest of the items
+            while [ -z "$ITEM_ID" ] && [ "$(echo "$PAGE_INFO" | jq -r '.hasNextPage')" == "true" ]; do
+            PAGE_INFO=$(gh api graphql -f query='
+              query($project: ID!, $cursor: String!) {
+              node(id: $project) {
+                ... on ProjectV2 {
+                items(first: 100, after: $cursor) {
+                  pageInfo {
+                  hasNextPage
+                  endCursor
+                  }
+                  nodes {
+                  id
+                  content {
+                    ... on Issue {
+                    id
+                    }
+                  }
+                  }
+                }
+                }
+              }
+              }' -f project=$PROJECT_ID -f cursor=$(echo "$PAGE_INFO" | jq -r '.endCursor') --jq '.data.node.items.pageInfo')
+
+            ITEM_ID=$(gh api graphql -f query='
+              query($project: ID!, $cursor: String!) {
+              node(id: $project) {
+                ... on ProjectV2 {
+                items(first: 100, after: $cursor) {
+                  nodes {
+                  id
+                  content {
+                    ... on Issue {
+                    id
+                    }
+                  }
+                  }
+                }
+                }
+              }
+              }' -f project=$PROJECT_ID -f cursor=$(echo "$PAGE_INFO" | jq -r '.endCursor') --jq '.data.node.items.nodes[] | select(.content.id == env.ISSUE_ID) | .id')
+            done
 
           echo "ITEM_ID: $ITEM_ID"
 
@@ -80,7 +129,7 @@ jobs:
             exit 0
           fi
 
-          # Set the Status to Done
+          # Set the Status to In Progress
           RESULT=$(gh api graphql -f query='
             mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
               updateProjectV2ItemFieldValue(input: {
@@ -95,7 +144,7 @@ jobs:
                   id
                 }
               }
-            }' -f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$DONE_OPTION_ID)
+            }' -f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$IN_PROGRESS_OPTION_ID)
 
           if echo "$RESULT" | jq -e '.data.updateProjectV2ItemFieldValue.projectV2Item.id' > /dev/null; then
             echo "Issue successfully moved to In Progress status."
