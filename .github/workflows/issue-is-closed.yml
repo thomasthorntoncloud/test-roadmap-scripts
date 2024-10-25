@@ -26,6 +26,7 @@ jobs:
               }
             }' -f organization=ORGANIZATION -F number=$ISSUE_ID --jq '.data.organization.projectV2.id')
 
+
           echo "PROJECT_ID: $PROJECT_ID"
 
           # Get the Status field ID and Done option ID
@@ -60,7 +61,7 @@ jobs:
             query($project: ID!) {
               node(id: $project) {
                 ... on ProjectV2 {
-                  items(first: 100) {
+                  items(first: 5000) {
                     nodes {
                       id
                       content {
