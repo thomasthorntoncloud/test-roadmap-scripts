@@ -12,13 +12,14 @@ jobs:
       - name: Move issue to Done
         env:
           GH_TOKEN: ${{ secrets.SECRET_PAT }}
-          ORGANIZATION: thomasthorntoncloud
+          PROJECT_OWNER: thomasthorntoncloud
           PROJECT_NUMBER: 1
         run: |
           # Get project ID
           PROJECT_ID=$(gh project view $PROJECT_NUMBER --owner $PROJECT_OWNER --format json | jq -r '.id')
           echo "Project ID: $PROJECT_ID"
 
+          FIELDS=$(gh project field-list $PROJECT_NUMBER --owner $PROJECT_OWNER --format json)
           echo "All fields:"
           echo "$FIELDS" | jq '.'
 
