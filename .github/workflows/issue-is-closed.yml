@@ -80,33 +80,6 @@ jobs:
             exit 1
           fi
 
-
-
-          # # Set the Status to Done
-          # RESULT=$(gh api graphql -f query='
-          #   mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
-          #     updateProjectV2ItemFieldValue(input: {
-          #       projectId: $project
-          #       itemId: $item
-          #       fieldId: $field
-          #       value: { 
-          #         singleSelectOptionId: $value
-          #       }
-          #     }) {
-          #       projectV2Item {
-          #         id
-          #       }
-          #     }
-          #   }' -f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$DONE_OPTION_ID)
-
-          # if echo "$RESULT" | jq -e '.data.updateProjectV2ItemFieldValue.projectV2Item.id' > /dev/null; then
-          #   echo "Issue successfully moved to Done status."
-          # else
-          #   echo "Error updating issue status: $RESULT"
-          #   exit 1
-          # fi
-
-
       - name: Confirm status update
         if: success()
         run: echo "Issue moved to Done status successfully."
