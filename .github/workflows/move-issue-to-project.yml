@@ -15,13 +15,15 @@ jobs:
     steps:
       - name: Add issue to project Todo column
         run: |
+          ISSUE_URL="${{ github.event.issue.html_url }}"
+
           # Get project ID
           PROJECT_ID=$(gh project view $PROJECT_NUMBER --owner $PROJECT_OWNER --format json | jq -r '.id')
           echo "Project ID: $PROJECT_ID"
 
           # Add issue to project
           echo "Adding issue to project..."
-          ITEM_ID=$(gh project item-add $PROJECT_NUMBER --owner "$PROJECT_NUMBER" --url "$ISSUE_URL" --format json | jq -r '.id')
+          ITEM_ID=$(gh project item-add $PROJECT_NUMBER --owner "$PROJECT_OWNER" --url "$ISSUE_URL" --format json | jq -r '.id')
           echo "ITEM_ID: $ITEM_ID"
 
           if [ -z "$ITEM_ID" ]; then
