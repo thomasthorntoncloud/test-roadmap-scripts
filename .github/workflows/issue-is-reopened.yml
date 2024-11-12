@@ -3,7 +3,7 @@ name: Move Issue to In Progress When ReOpened
 on:
   issues:
     types:
-      - closed
+      - reopened
 
 jobs:
   move-to-in-progress:
