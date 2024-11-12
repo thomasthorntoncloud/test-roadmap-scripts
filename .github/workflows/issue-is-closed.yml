@@ -2,75 +2,61 @@ name: Move Issue to Done When Closed
 
 on:
   issues:
-    types: [closed]
+    types:
+      - closed
 
 jobs:
   move-to-done:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
-      ISSUE_ID: ${{ github.event.issue.node_id }}
-      ORGANIZATION: thomasthorntoncloud
-      PROJECT_NUMBER: 1
     steps:
       - name: Move issue to Done
+        env:
+          GH_TOKEN: ${{ secrets.SECRET_PAT }}
+          ORGANIZATION: thomasthorntoncloud
+          PROJECT_NUMBER: 1
         run: |
-          # Function to execute GraphQL queries
-          gql_query() {
-            gh api graphql -f query="$1" $2 --jq "$3"
-          }
+          # View project details
+          PROJECT_INFO=$(gh project view $PROJECT_NUMBER --owner $ORGANIZATION --format json)
+          PROJECT_ID=$(echo "$PROJECT_INFO" | jq -r '.id')
+          echo "PROJECT_ID: $PROJECT_ID"
 
-          # Get project ID
-          PROJECT_ID=$(gql_query '
-            query($org: String!, $num: Int!) {
-              organization(login: $org) { projectV2(number: $num) { id } }
-            }' "-f org=$ORGANIZATION -F num=$PROJECT_NUMBER" '.data.organization.projectV2.id')
+          # List project fields to find Status field
+          FIELDS=$(gh project field-list $PROJECT_NUMBER --owner $ORGANIZATION --format json)
+          STATUS_FIELD=$(echo "$FIELDS" | jq -r '.[] | select(.name == "Status")')
+          STATUS_FIELD_ID=$(echo "$STATUS_FIELD" | jq -r '.id')
+          DONE_OPTION_ID=$(echo "$STATUS_FIELD" | jq -r '.options[] | select(.name == "Done") | .id')
+          echo "STATUS_FIELD_ID: $STATUS_FIELD_ID"
+          echo "DONE_OPTION_ID: $DONE_OPTION_ID"
 
-          # Get Status field and Done option IDs
-          FIELD_DATA=$(gql_query '
-            query($project: ID!) {
-              node(id: $project) {
-                ... on ProjectV2 { fields(first: 20) { nodes { ...on ProjectV2SingleSelectField { id name options { id name } } } } }
-              }
-            }' "-f project=$PROJECT_ID" '.data.node.fields.nodes[] | select(.name == "Status")')
-          STATUS_FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
-          DONE_OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Done") | .id')
+          # List project items with pagination to find the closed issue
+          ITEM_ID=""
+          CURSOR=""
+          while [ -z "$ITEM_ID" ]; do
+            ITEMS=$(gh project item-list $PROJECT_NUMBER --owner $ORGANIZATION --format json --limit 100 ${CURSOR:+--cursor "$CURSOR"})
+            ITEM_ID=$(echo "$ITEMS" | jq -r --arg ISSUE_NUMBER "${{ github.event.issue.number }}" '.items[] | select(.content.number == ($ISSUE_NUMBER | tonumber)) | .id')
+            
+            if [ -n "$ITEM_ID" ]; then
+              break
+            fi
+            
+            CURSOR=$(echo "$ITEMS" | jq -r '.pageInfo.endCursor')
+            if [ "$CURSOR" = "null" ]; then
+              break
+            fi
+          done
 
-          # Function to find item ID with pagination
-          find_item_id() {
-            local cursor=""
-            while true; do
-              local result=$(gql_query '
-                query($project: ID!, $cursor: String) {
-                  node(id: $project) {
-                    ... on ProjectV2 {
-                      items(first: 100, after: $cursor) {
-                        pageInfo { hasNextPage endCursor }
-                        nodes { id content { ...on Issue { id } } }
-                      }
-                    }
-                  }
-                }' "-f project=$PROJECT_ID -f cursor=$cursor" '.data.node.items')
-              
-              ITEM_ID=$(echo "$result" | jq -r --arg ISSUE_ID "$ISSUE_ID" '.nodes[] | select(.content.id == $ISSUE_ID) | .id')
-              [ -n "$ITEM_ID" ] && break
+          echo "ITEM_ID: $ITEM_ID"
 
-              cursor=$(echo "$result" | jq -r '.pageInfo.endCursor')
-              [ "$(echo "$result" | jq -r '.pageInfo.hasNextPage')" != "true" ] && break
-            done
-            echo "$ITEM_ID"
-          }
+          if [ -z "$ITEM_ID" ]; then
+            echo "Error: Could not find the issue in the project. Skipping status update."
+            exit 0
+          fi
 
-          ITEM_ID=$(find_item_id)
+          # Update the item's Status to Done
+          gh project item-edit $PROJECT_NUMBER --owner $ORGANIZATION --id "$ITEM_ID" --field-id "$STATUS_FIELD_ID" --single-select-option-id "$DONE_OPTION_ID"
 
-          [ -z "$ITEM_ID" ] && { echo "Error: Issue not found in project."; exit 0; }
+          echo "Issue successfully moved to Done status."
 
-          # Update issue status
-          RESULT=$(gql_query '
-            mutation($project: ID!, $item: ID!, $field: ID!, $value: String!) {
-              updateProjectV2ItemFieldValue(input: {
-                projectId: $project, itemId: $item, fieldId: $field, value: { singleSelectOptionId: $value }
-              }) { projectV2Item { id } }
-            }' "-f project=$PROJECT_ID -f item=$ITEM_ID -f field=$STATUS_FIELD_ID -f value=$DONE_OPTION_ID" '.data.updateProjectV2ItemFieldValue.projectV2Item.id')
-
-          [ -n "$RESULT" ] && echo "Issue moved to Done status." || { echo "Error updating status: $RESULT"; exit 1; }
+      - name: Confirm status update
+        if: success()
+        run: echo "Issue moved to Done status successfully."
