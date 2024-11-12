@@ -67,7 +67,6 @@ jobs:
           # Set the Status to Done
           echo "Updating item status to Done..."
           RESULT=$(gh project item-edit $PROJECT_NUMBER \
-            --owner $PROJECT_OWNER \
             --id "$ITEM_ID" \
             --field-id "$STATUS_FIELD_ID" \
             --single-select-option-id "$DONE_OPTION_ID" \
