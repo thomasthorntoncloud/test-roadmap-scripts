@@ -64,79 +64,23 @@ jobs:
 
           echo "ITEM_ID: $ITEM_ID"
 
+          # Set the Status to Done
+          echo "Updating item status to Done..."
+          RESULT=$(gh project item-edit $PROJECT_NUMBER \
+            --owner $ORGANIZATION \
+            --id "$ITEM_ID" \
+            --field-id "$STATUS_FIELD_ID" \
+            --single-select-option-id "$DONE_OPTION_ID" \
+            --format json)
 
-          #   # Find the item ID for the closed issue, accommodating more than 100 items
-          #   ITEM_ID=$(gh api graphql -f query='
-          #   query($project: ID!) {
-          #     node(id: $project) {
-          #     ... on ProjectV2 {
-          #       items(first: 100) {
-          #       pageInfo {
-          #         hasNextPage
-          #         endCursor
-          #       }
-          #       nodes {
-          #         id
-          #         content {
-          #         ... on Issue {
-          #           id
-          #         }
-          #         }
-          #       }
-          #       }
-          #     }
-          #     }
-          #   }' -f project=$PROJECT_ID --jq '.data.node.items.nodes[] | select(.content.id == env.ISSUE_ID) | .id')
+          if echo "$RESULT" | jq -e '.id' > /dev/null; then
+            echo "Issue successfully moved to Done status."
+          else
+            echo "Error updating issue status: $RESULT"
+            exit 1
+          fi
 
-          #   # If not found, paginate through the rest of the items
-          #   while [ -z "$ITEM_ID" ] && [ "$(echo "$PAGE_INFO" | jq -r '.hasNextPage')" == "true" ]; do
-          #   PAGE_INFO=$(gh api graphql -f query='
-          #     query($project: ID!, $cursor: String!) {
-          #     node(id: $project) {
-          #       ... on ProjectV2 {
-          #       items(first: 100, after: $cursor) {
-          #         pageInfo {
-          #         hasNextPage
-          #         endCursor
-          #         }
-          #         nodes {
-          #         id
-          #         content {
-          #           ... on Issue {
-          #           id
-          #           }
-          #         }
-          #         }
-          #       }
-          #       }
-          #     }
-          #     }' -f project=$PROJECT_ID -f cursor=$(echo "$PAGE_INFO" | jq -r '.endCursor') --jq '.data.node.items.pageInfo')
 
-          #   ITEM_ID=$(gh api graphql -f query='
-          #     query($project: ID!, $cursor: String!) {
-          #     node(id: $project) {
-          #       ... on ProjectV2 {
-          #       items(first: 100, after: $cursor) {
-          #         nodes {
-          #         id
-          #         content {
-          #           ... on Issue {
-          #           id
-          #           }
-          #         }
-          #         }
-          #       }
-          #       }
-          #     }
-          #     }' -f project=$PROJECT_ID -f cursor=$(echo "$PAGE_INFO" | jq -r '.endCursor') --jq '.data.node.items.nodes[] | select(.content.id == env.ISSUE_ID) | .id')
-          #   done
-
-          # echo "ITEM_ID: $ITEM_ID"
-
-          # if [ -z "$ITEM_ID" ]; then
-          #   echo "Error: Could not find the issue in the project. Skipping status update."
-          #   exit 0
-          # fi
 
           # # Set the Status to Done
           # RESULT=$(gh api graphql -f query='
