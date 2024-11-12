@@ -21,7 +21,7 @@ jobs:
 
           # Add issue to project
           echo "Adding issue to project..."
-          ITEM_ID=$(gh project item-add $PROJECT_NUMBER --owner "$ORGANIZATION" --url "$ISSUE_URL" --format json | jq -r '.id')
+          ITEM_ID=$(gh project item-add $PROJECT_NUMBER --owner "$PROJECT_NUMBER" --url "$ISSUE_URL" --format json | jq -r '.id')
           echo "ITEM_ID: $ITEM_ID"
 
           if [ -z "$ITEM_ID" ]; then
