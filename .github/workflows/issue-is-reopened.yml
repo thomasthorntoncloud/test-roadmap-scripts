@@ -74,12 +74,8 @@ jobs:
             --format json)
 
           if echo "$RESULT" | jq -e '.id' > /dev/null; then
-            echo "Issue successfully moved to Done status."
+            echo "Issue successfully moved to In Progress status."
           else
             echo "Error updating issue status: $RESULT"
             exit 1
           fi
-
-      - name: Confirm status update
-        if: success()
-        run: echo "Issue moved to Done status successfully."

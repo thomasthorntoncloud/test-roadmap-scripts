@@ -9,14 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
-      ISSUE_ID: ${{ github.event.issue.node_id }}
+      ISSUE_URL: ${{ github.event.issue.html_url }}
       PROJECT_OWNER: thomasthorntoncloud
       PROJECT_NUMBER: 1
     steps:
       - name: Add issue to project Todo column
         run: |
-          ISSUE_URL="${{ github.event.issue.html_url }}"
-
           # Get project ID
           PROJECT_ID=$(gh project view $PROJECT_NUMBER --owner $PROJECT_OWNER --format json | jq -r '.id')
           echo "Project ID: $PROJECT_ID"
