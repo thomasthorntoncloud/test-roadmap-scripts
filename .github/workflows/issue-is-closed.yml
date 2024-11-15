@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.SECRET_PAT }}
-      PROJECT_OWNER: hmcts
-      PROJECT_NUMBER: 10
+      PROJECT_OWNER: thomasthorntoncloud
+      PROJECT_NUMBER: 1
       ISSUE_NUMBER: ${{ github.event.issue.number }}
     steps:
       - name: Move issue to Done
